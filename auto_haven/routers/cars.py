@@ -1,13 +1,51 @@
+import cloudinary
+from cloudinary import uploader
 from bson import ObjectId
 from pydantic import HttpUrl
-from fastapi import APIRouter, Body, Request, status, HTTPException, Depends
+from fastapi import (
+    APIRouter,
+    Body,
+    Request,
+    status,
+    HTTPException,
+    Depends,
+    File,
+    UploadFile,
+    Form,
+)
 from fastapi.responses import Response
 from pymongo import ReturnDocument
+from auto_haven.config import BaseConfig
 from auto_haven.models.car import Car, UpdateCar, PaginatedCarCollection
 
 router = APIRouter(prefix="/cars", tags=["cars"])
 
 CARS_PER_PAGE = 10
+
+ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png"]
+MAX_IMAGE_SIZE = 5 * 1024 * 1024
+
+settings = BaseConfig()
+
+cloudinary.config(
+    cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+    api_key=settings.CLOUDINARY_API_KEY,
+    api_secret=settings.CLOUDINARY_API_SECRET,
+)
+
+
+async def validate_image(image, image_types, image_size):
+    if image.content_type not in image_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid image type. Allowed types: {', '.join(ALLOWED_IMAGE_TYPES)}.",
+        )
+
+    if image.size > image_size:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Image file size must not exceed {MAX_IMAGE_SIZE / 1024 / 1024} MB.",
+        )
 
 
 @router.post(
@@ -17,13 +55,50 @@ CARS_PER_PAGE = 10
     status_code=status.HTTP_201_CREATED,
     response_model_by_alias=False,
 )
-async def add_car(request: Request, car: Car = Body(...)) -> Car:
+async def add_car_with_image(
+    request: Request,
+    brand: str = Form("brand"),
+    model: str = Form("make"),
+    year: int = Form("year"),
+    cm3: int = Form("cm3"),
+    kw: int = Form("kw"),
+    km: int = Form("km"),
+    price: int = Form("price"),
+    image: UploadFile = File("image"),
+) -> Car:
     """
     Add a new car to the database.
 
     - **car**: Car data to be added (JSON body).
     - **returns**: The newly added car object.
     """
+    # validate the image before proceeding to upload
+    await validate_image(image, ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE)
+
+    # Upload image to Cloudinary
+    try:
+        cloudinary_image = cloudinary.uploader.upload(
+            image.file, folder="FARM2", crop="fill", width=800
+        )
+        image_url = cloudinary_image["url"]
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload image: {str(e)}",
+        )
+
+    car = Car(
+        brand=brand,
+        model=model,
+        year=year,
+        cm3=cm3,
+        kw=kw,
+        km=km,
+        price=price,
+        image_url=image_url,
+    )
+
+    # Insert car into the database
     cars_collection = request.app.db["cars"]
     car_data = car.model_dump(by_alias=True, exclude=["id"])
 
@@ -33,6 +108,7 @@ async def add_car(request: Request, car: Car = Body(...)) -> Car:
 
     insert_result = await cars_collection.insert_one(car_data)
     new_car = await cars_collection.find_one({"_id": insert_result.inserted_id})
+
     return new_car
 
 
@@ -97,17 +173,18 @@ async def car_detail(id: str, request: Request):
     - **returns**: The car object if found, otherwise raises a 404 error.
     """
     cars_collection = request.app.db["cars"]
+    # validate and convert the id to ObjectId
     try:
         car_id = ObjectId(id)
     except Exception:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f"Car {id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Invalid car ID: {id}"
         )
 
     if (car := await cars_collection.find_one({"_id": car_id})) is not None:
         return car
     raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND, detail=f"Car with {id} not found"
+        status_code=status.HTTP_404_NOT_FOUND, detail=f"Car with ID {id} not found"
     )
 
 
