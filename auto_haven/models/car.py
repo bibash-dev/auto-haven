@@ -1,5 +1,12 @@
 from typing import Optional, Annotated, List
-from pydantic import BaseModel, ConfigDict, Field, field_validator, BeforeValidator, HttpUrl
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    BeforeValidator,
+    HttpUrl,
+)
 
 PyObjectId = Annotated[str, BeforeValidator(str)]
 
@@ -39,3 +46,10 @@ class UpdateCar(BaseModel):
 
 class CarCollection(BaseModel):
     cars: List[Car] = Field(...)
+
+
+class PaginatedCarCollection(CarCollection):
+    page: int = Field(ge=1, default=1)
+    total_cars: int
+    total_pages: int
+    has_more: bool

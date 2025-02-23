@@ -3,9 +3,12 @@ from pydantic import HttpUrl
 from fastapi import APIRouter, Body, Request, status, HTTPException, Depends
 from fastapi.responses import Response
 from pymongo import ReturnDocument
-from auto_haven.models.car import Car, CarCollection, UpdateCar
+from auto_haven.models.car import Car, UpdateCar, PaginatedCarCollection
 
 router = APIRouter(prefix="/cars", tags=["cars"])
+
+CARS_PER_PAGE = 10
+
 
 @router.post(
     "/",
@@ -35,19 +38,49 @@ async def add_car(request: Request, car: Car = Body(...)) -> Car:
 
 @router.get(
     "/",
-    response_description="List all cars",
-    response_model=CarCollection,
+    response_description="Retrieve a paginated list of all available cars",
+    response_model=PaginatedCarCollection,
     response_model_by_alias=False,
 )
-async def list_cars(request: Request):
+async def list_cars(
+    request: Request, page: int = 1, limit: int = 10
+) -> PaginatedCarCollection:
     """
-    Retrieve a list of all cars from the database.
+    Retrieve a paginated list of all cars from the database.
 
-    - **returns**: A collection of cars.
+    - page: The page number to retrieve (default: 1).
+    - limit: The number of cars per page (default: 10).
+    - **returns**: A paginated collection of cars.
     """
+    if page < 1 or limit < 1:
+        raise HTTPException(
+            status_code=400, detail="Page and limit must be greater than 0."
+        )
+
     cars_collection = request.app.db["cars"]
-    results = [document async for document in cars_collection.find()]
-    return CarCollection(cars=results)
+    results = []
+
+    try:
+        cursor = (
+            cars_collection.find().sort("brand").limit(limit).skip((page - 1) * limit)
+        )
+        total_documents = await cars_collection.count_documents({})
+        total_pages = (total_documents + limit - 1) // limit
+        has_more = total_documents > page * limit
+
+        async for document in cursor:
+            results.append(Car(**document))  # Validate documents against the Car model
+
+        return PaginatedCarCollection(
+            cars=results,
+            page=page,
+            total_cars=total_documents,
+            total_pages=total_pages,
+            has_more=has_more,
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
 
 @router.get(
@@ -60,18 +93,22 @@ async def car_detail(id: str, request: Request):
     """
     Retrieve a single car by its ID.
 
-    - **id**: The ID of the car to retrieve.
+    - id: The ID of the car to retrieve.
     - **returns**: The car object if found, otherwise raises a 404 error.
     """
     cars_collection = request.app.db["cars"]
     try:
         car_id = ObjectId(id)
     except Exception:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Car {id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Car {id} not found"
+        )
 
     if (car := await cars_collection.find_one({"_id": car_id})) is not None:
         return car
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Car with {id} not found")
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail=f"Car with {id} not found"
+    )
 
 
 @router.put(
@@ -88,7 +125,7 @@ async def update_car(
     """
     Update individual fields of an existing car record.
 
-    - **id**: The ID of the car to update.
+    - id: The ID to get the car from.
     - **car**: The car data to update (JSON body).
     - **returns**: The updated car object if found, otherwise raises a 404 error.
     """
@@ -96,7 +133,9 @@ async def update_car(
     try:
         car_id = ObjectId(id)
     except Exception:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Car {id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Car {id} not found"
+        )
 
     # Convert the Pydantic model to a dictionary and exclude None values
     car_data = {
@@ -121,14 +160,18 @@ async def update_car(
         if update_result is not None:
             return update_result
         else:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Car {id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=f"Car {id} not found"
+            )
 
     # If no fields are provided for update, return the existing car
     existing_car = await cars_collection.find_one({"_id": car_id})
     if existing_car is not None:
         return existing_car
 
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Car {id} not found")
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail=f"Car {id} not found"
+    )
 
 
 @router.delete("/{id}", response_description="Delete a car")
@@ -136,17 +179,21 @@ async def delete_car(id: str, request: Request):
     """
     Delete a car by its ID.
 
-    - **id**: The ID of the car to delete.
-    - **returns**: HTTP 204 No Content if successful, otherwise raises a 404 error.
+    - id: The ID of the car to delete.
+    - returns: HTTP 204 No Content if successful, otherwise raises a 404 error.
     """
     try:
         car_id = ObjectId(id)
     except Exception:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Car {id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Car {id} not found"
+        )
 
     cars_collection = request.app.db["cars"]
     delete_result = await cars_collection.delete_one({"_id": car_id})
 
     if delete_result.deleted_count == 1:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Car with {id} not found")
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail=f"Car with {id} not found"
+    )

@@ -27,9 +27,4 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-app.include_router(cars_router, prefix="/cars", tags=["cars"])
-
-
-@app.get("/")
-async def root():
-    return {"message": "ready to go"}
+app.include_router(cars_router)
