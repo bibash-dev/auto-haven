@@ -17,8 +17,9 @@ from fastapi.responses import Response
 from pymongo import ReturnDocument
 from auto_haven.config import BaseConfig
 from auto_haven.models.car import Car, UpdateCar, PaginatedCarCollection
+from auto_haven.routers.users import auth_handler
 
-router = APIRouter(prefix="/cars", tags=["cars"])
+router = APIRouter()
 
 CARS_PER_PAGE = 10
 
@@ -30,7 +31,7 @@ settings = BaseConfig()
 cloudinary.config(
     cloud_name=settings.CLOUDINARY_CLOUD_NAME,
     api_key=settings.CLOUDINARY_API_KEY,
-    api_secret=settings.CLOUDINARY_API_SECRET,
+    api_secret=settings.CLOUDINARY_SECRET_KEY,
 )
 
 
@@ -57,14 +58,28 @@ async def validate_image(image, image_types, image_size):
 )
 async def add_car_with_image(
     request: Request,
-    brand: str = Form("brand"),
-    model: str = Form("make"),
-    year: int = Form("year"),
-    cm3: int = Form("cm3"),
-    kw: int = Form("kw"),
-    km: int = Form("km"),
-    price: int = Form("price"),
-    image: UploadFile = File("image"),
+    brand: str = Form(
+        ..., description="brand or manufacturer of the car (e.g., Toyota, Ford)."
+    ),
+    model: str = Form(
+        ..., description="model name of the car (e.g., Corolla, Mustang)."
+    ),
+    year: int = Form(..., description="manufacturing year of the car (e.g., 2020)."),
+    cm3: int = Form(
+        ...,
+        description="engine displacement of the car in cubic centimeters (e.g., 1500).",
+    ),
+    kw: int = Form(
+        ..., description="power output of the car in kilowatts (e.g., 100)."
+    ),
+    km: int = Form(..., description="mileage of the car in kilometers (e.g., 5000)."),
+    price: int = Form(
+        ..., description="price of the car in the local currency (e.g., 20000)."
+    ),
+    image: UploadFile = File(
+        ..., description="an image of the car in JPEG or PNG format (max 5 MB)."
+    ),
+    user: str = Depends(auth_handler.authentication_wrapper),
 ) -> Car:
     """
     Add a new car to the database.
@@ -95,6 +110,7 @@ async def add_car_with_image(
         kw=kw,
         km=km,
         price=price,
+        user_id=user["user_id"],
         image_url=image_url,
     )
 

@@ -7,3 +7,6 @@ pytest
 pytest-cov
 python-dotenv
 cloudinary
+python-multipart
+pyjwt
+passlib

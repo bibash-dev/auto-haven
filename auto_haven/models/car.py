@@ -20,6 +20,7 @@ class Car(BaseModel):
     kw: int = Field(..., ge=50, le=1000, description="engine power in kW")
     km: int = Field(..., ge=0, le=100000, description="kilometers travelled")
     price: int = Field(..., ge=0, le=100000, description="price of a car")
+    user_id: str = Field(..., description="ID of the user who owns the car")
     image_url: Optional[HttpUrl] = Field(None, description="URL of the car's image")
 
     @field_validator("brand", "model")
