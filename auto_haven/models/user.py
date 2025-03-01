@@ -1,24 +1,30 @@
-from typing import Optional, Annotated
-from pydantic import (
-    BaseModel,
-    Field,
-    BeforeValidator,
-)
-
-PyObjectId = Annotated[str, BeforeValidator(str)]
+from datetime import datetime
+from beanie import Document, PydanticObjectId
+from pydantic import BaseModel, Field
 
 
-class User(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
-    username: str = Field(..., min_length=3, max_length=15)
-    password: str = Field(...)
+class User(Document):
+    username: str
+    password: str
+    email: str
+    created: datetime = Field(default_factory=datetime.now)
+
+    class Settings:
+        name = "user"
 
 
 class Login(BaseModel):
-    username: str = Field(...)
-    password: str = Field(...)
+    username: str
+    password: str
 
 
 class CurrentUser(BaseModel):
-    id: PyObjectId = Field(alias="_id", default=None)
-    username: str = Field(..., min_length=3, max_length=15)
+    id: PydanticObjectId
+    username: str
+    email: str
+
+
+class Register(BaseModel):
+    username: str = Field(..., min_length=3, max_length=20)
+    password: str
+    email: str

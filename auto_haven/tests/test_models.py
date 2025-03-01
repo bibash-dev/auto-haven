@@ -1,5 +1,5 @@
 import pytest
-from auto_haven.models.car import Car, CarCollection
+from backend.auto_haven.models.car import Car, CarCollection
 from pydantic import ValidationError
 
 
@@ -7,16 +7,28 @@ from pydantic import ValidationError
 @pytest.fixture
 def test_car1():
     return Car(
-        brand="Ford", model="Fiesta", year=2019, cm3=1500, kw=85, km=40000, price=10000,
-        image_url="http://example.com/new-image.jpg"
+        brand="Ford",
+        model="Fiesta",
+        year=2019,
+        cm3=1500,
+        kw=85,
+        km=40000,
+        price=10000,
+        image_url="http://example.com/new-image.jpg",
     )
 
 
 @pytest.fixture
 def test_car2():
     return Car(
-        brand="Fiat", model="Stilo", year=2003, cm3=1600, kw=85, km=80000, price=3000,
-        image_url="http://example.com/new-image2.jpg"
+        brand="Fiat",
+        model="Stilo",
+        year=2003,
+        cm3=1600,
+        kw=85,
+        km=80000,
+        price=3000,
+        image_url="http://example.com/new-image2.jpg",
     )
 
 
@@ -40,8 +52,14 @@ def test_car_creation(test_car1):
 def test_car_invalid_year():
     with pytest.raises(ValidationError):
         Car(
-            brand="Ford", model="Fiesta", year=1899, cm3=1500, kw=85, km=40000, price=10000,
-            image_url="http://example.com/new-image.jpg"
+            brand="Ford",
+            model="Fiesta",
+            year=1899,
+            cm3=1500,
+            kw=85,
+            km=40000,
+            price=10000,
+            image_url="http://example.com/new-image.jpg",
         )
 
 
@@ -60,6 +78,12 @@ def test_car_collection_empty():
 def test_car_invalid_url():
     with pytest.raises(ValidationError):
         Car(
-            brand="Ford", model="Fiesta", year=2019, cm3=1500, kw=85, km=40000, price=10000,
-            image_url="invalid-url"
+            brand="Ford",
+            model="Fiesta",
+            year=2019,
+            cm3=1500,
+            kw=85,
+            km=40000,
+            price=10000,
+            image_url="invalid-url",
         )

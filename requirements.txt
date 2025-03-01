@@ -1,8 +1,11 @@
 fastapi
+fastapi_cors
+openai
 uvicorn[standard]
 pydantic
 pydantic-settings
 motor
+beanie
 pytest
 pytest-cov
 python-dotenv
@@ -10,3 +13,4 @@ cloudinary
 python-multipart
 pyjwt
 passlib
+resend
